@@ -18,8 +18,9 @@ Panel {
     property string statusMessage: ""
     property string errorMessage: ""
 
-    // Form states for adding new connection
+    // Form states for adding / editing connection
     property bool showAddForm: false
+    property string editingId: ""
     property string newName: ""
     property string newHost: ""
     property string newUser: ""
@@ -73,24 +74,50 @@ Panel {
         actionProc.running = true
     }
 
-    function addVPN() {
+    function startEditVPN(conn) {
+        root.editingId = conn.id
+        root.newName = conn.name || conn.id
+        root.newHost = conn.server || ""
+        root.newUser = conn.username || ""
+        root.newPassword = ""
+        root.showAddForm = true
+        root.errorMessage = ""
+    }
+
+    function saveVPN() {
         if (!root.newName.trim() || !root.newHost.trim() || !root.newUser.trim()) {
             root.errorMessage = "Please fill in Name, Host, and Username."
             return
         }
         root.busy = true
-        var cmd = [root.helperScript, "add", root.newName.trim(), root.newHost.trim(), root.newUser.trim()]
+        var cmd = []
+        if (root.editingId) {
+            cmd = [root.helperScript, "edit", root.editingId, root.newName.trim(), root.newHost.trim(), root.newUser.trim()]
+        } else {
+            cmd = [root.helperScript, "add", root.newName.trim(), root.newHost.trim(), root.newUser.trim()]
+        }
         if (root.newPassword) {
             cmd.push(root.newPassword)
         }
         actionProc.command = cmd
         actionProc.running = true
 
+        root.editingId = ""
         root.newName = ""
         root.newHost = ""
         root.newUser = ""
         root.newPassword = ""
         root.showAddForm = false
+    }
+
+    function cancelForm() {
+        root.editingId = ""
+        root.newName = ""
+        root.newHost = ""
+        root.newUser = ""
+        root.newPassword = ""
+        root.showAddForm = false
+        root.errorMessage = ""
     }
 
     function parseJsonSafe(text) {
@@ -282,13 +309,22 @@ Panel {
                         implicitHeight: Style.space(28)
                         anchors.right: parent.right
                         onClicked: {
-                            root.showAddForm = !root.showAddForm
-                            root.errorMessage = ""
+                            if (root.showAddForm) {
+                                root.cancelForm()
+                            } else {
+                                root.editingId = ""
+                                root.newName = ""
+                                root.newHost = ""
+                                root.newUser = ""
+                                root.newPassword = ""
+                                root.showAddForm = true
+                                root.errorMessage = ""
+                            }
                         }
                     }
                 }
 
-                // Add Connection Form
+                // Add / Edit Connection Form
                 Rectangle {
                     width: parent.width
                     implicitHeight: addCol.implicitHeight + Style.space(16)
@@ -301,6 +337,13 @@ Panel {
                         anchors.fill: parent
                         anchors.margins: Style.space(8)
                         spacing: Style.space(6)
+
+                        Text {
+                            text: root.editingId ? "Edit Connection" : "New Connection"
+                            color: root.bar ? root.bar.foreground : "#ffffff"
+                            font.bold: true
+                            font.pixelSize: Style.font.caption
+                        }
 
                         TextField {
                             width: parent.width
@@ -325,17 +368,29 @@ Panel {
 
                         TextField {
                             width: parent.width
-                            placeholderText: "Password (stored in secret-tool, optional)"
+                            placeholderText: root.editingId ? "New Password (leave empty to keep current)" : "Password (stored in secret-tool, optional)"
                             echoMode: TextInput.Password
                             text: root.newPassword
                             onTextChanged: root.newPassword = text
                         }
 
-                        Button {
+                        Row {
                             width: parent.width
-                            text: "Save Connection"
-                            enabled: !root.busy
-                            onClicked: root.addVPN()
+                            spacing: Style.space(6)
+
+                            Button {
+                                width: (parent.width - Style.space(6)) / 2
+                                text: root.editingId ? "Update" : "Save"
+                                enabled: !root.busy
+                                onClicked: root.saveVPN()
+                            }
+
+                            Button {
+                                width: (parent.width - Style.space(6)) / 2
+                                text: "Cancel"
+                                enabled: !root.busy
+                                onClicked: root.cancelForm()
+                            }
                         }
                     }
                 }
@@ -415,6 +470,15 @@ Panel {
                                             } else {
                                                 root.connectVPN(modelData.id)
                                             }
+                                        }
+                                    }
+
+                                    Button {
+                                        implicitHeight: Style.space(30)
+                                        text: "✎"
+                                        enabled: !root.busy
+                                        onClicked: {
+                                            root.startEditVPN(modelData)
                                         }
                                     }
 

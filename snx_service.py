@@ -231,6 +231,19 @@ def cmd_add(name: str, server: str, username: str, password: str = "") -> None:
     print(json.dumps({"success": True, "id": conn_id, "message": f"Connection '{name}' saved"}))
 
 
+def cmd_edit(conn_id: str, name: str, server: str, username: str, password: str = "") -> None:
+    ensure_dir()
+    snxrc_path = os.path.join(SNX_DIR, f"{conn_id}.snxrc")
+    if not os.path.exists(snxrc_path):
+        print(json.dumps({"success": False, "error": f"Connection '{conn_id}' not found"}))
+        sys.exit(1)
+    _write_snxrc(conn_id, server, username)
+    _write_meta(conn_id, name)
+    if password:
+        store_password(conn_id, name, password)
+    print(json.dumps({"success": True, "id": conn_id, "message": f"Connection '{name}' updated"}))
+
+
 def cmd_remove(conn_id: str) -> None:
     snxrc_path = os.path.join(SNX_DIR, f"{conn_id}.snxrc")
     meta_path  = os.path.join(SNX_DIR, f"{conn_id}.json")
@@ -453,6 +466,14 @@ def main() -> None:
             sys.exit(1)
         pwd = sys.argv[5] if len(sys.argv) > 5 else ""
         cmd_add(sys.argv[2], sys.argv[3], sys.argv[4], pwd)
+
+    elif action == "edit":
+        # edit <id> <name> <server> <username> [password]
+        if len(sys.argv) < 6:
+            print(json.dumps({"success": False, "error": "Usage: edit <id> <name> <server> <username> [password]"}))
+            sys.exit(1)
+        pwd = sys.argv[6] if len(sys.argv) > 6 else ""
+        cmd_edit(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], pwd)
 
     elif action == "remove":
         if len(sys.argv) < 3:
