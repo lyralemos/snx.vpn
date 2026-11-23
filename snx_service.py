@@ -147,7 +147,9 @@ def is_installed() -> bool:
 
 
 def is_running() -> bool:
-    return subprocess.run(["pgrep", "-x", "snx"], capture_output=True).returncode == 0
+    # Ignore zombie (defunct) snx processes: they are dead, not connected.
+    res = subprocess.run(["ps", "-C", "snx", "-o", "stat="], capture_output=True, text=True)
+    return any(s.strip() and not s.strip().startswith("Z") for s in res.stdout.splitlines())
 
 
 def get_tunnel_ip() -> str:
@@ -347,6 +349,17 @@ def run_snx_pty(server: str, username: str, password: str, timeout: int = 25) ->
         os.close(master_fd)
     except OSError:
         pass
+
+    # Reap the child so it never lingers as a zombie (which pgrep/ps would
+    # otherwise report as a running snx). On success snx daemonizes and the
+    # foreground process exits, so this does not kill an active tunnel.
+    for _ in range(20):
+        try:
+            if os.waitpid(pid, os.WNOHANG)[0] != 0:
+                break
+        except ChildProcessError:
+            break
+        time.sleep(0.1)
 
     full_output = "".join(output)
     return is_running() or ("connected" in full_output.lower() and "failed" not in full_output.lower()), full_output
